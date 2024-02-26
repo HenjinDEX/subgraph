@@ -1,0 +1,108 @@
+specVersion: 0.0.4
+description: Henjin is a decentralized protocol for automated token exchange on Taiko
+schema:
+  file: ./schema.graphql
+dataSources:
+  - kind: ethereum/contract
+    name: Factory
+    network: hekla
+    source:
+      address: '0x2dfFFadDE574158F6c0F84c56Db9F9745d2f0f03'
+      abi: Factory
+      startBlock: 20000 
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.6
+      language: wasm/assemblyscript
+      file: ./src/mappings/factory.ts
+      entities:
+        - Pool
+        - Token
+      abis:
+        - name: Factory
+          file: ./abis/factory.json
+        - name: ERC20
+          file: ./abis/ERC20.json
+        - name: ERC20SymbolBytes
+          file: ./abis/ERC20SymbolBytes.json
+        - name: ERC20NameBytes
+          file: ./abis/ERC20NameBytes.json
+        - name: Pool
+          file: ./abis/pool.json
+      eventHandlers:
+        - event: Pool(indexed address,indexed address,address)
+          handler: handlePoolCreated
+        - event: DefaultCommunityFee(uint16)
+          handler: handleNewCommunityFee
+  - kind: ethereum/contract
+    name: NonfungiblePositionManager
+    network: hekla
+    source:
+      address: '0x73042906a01017d2676A50973D249fD907ef8B72'
+      abi: NonfungiblePositionManager
+      startBlock: 20000
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.6
+      language: wasm/assemblyscript
+      file: ./src/mappings/position-manager.ts
+      entities:
+        - Pool
+        - Token
+        - Deposit
+      abis:
+        - name: NonfungiblePositionManager
+          file: ./abis/NonfungiblePositionManager.json
+        - name: Pool
+          file: ./abis/pool.json
+        - name: Factory
+          file: ./abis/factory.json
+        - name: ERC20
+          file: ./abis/ERC20.json
+      eventHandlers:
+        - event: Collect(indexed uint256,address,uint256,uint256)
+          handler: handleCollect
+        - event: DecreaseLiquidity(indexed uint256,uint128,uint256,uint256)
+          handler: handleDecreaseLiquidity
+        - event: IncreaseLiquidity(indexed uint256,uint128,uint128,uint256,uint256,address)
+          handler: handleIncreaseLiquidity
+        - event: Transfer(indexed address,indexed address,indexed uint256)
+          handler: handleTransfer
+templates:
+  - kind: ethereum/contract
+    name: Pool
+    network: hekla
+    source:
+      abi: Pool
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.6
+      language: wasm/assemblyscript
+      file: ./src/mappings/core.ts
+      entities:
+        - Pool
+        - Token
+      abis:
+        - name: Pool
+          file: ./abis/pool.json
+        - name: Factory
+          file: ./abis/factory.json
+        - name: ERC20
+          file: ./abis/ERC20.json
+      eventHandlers:
+        - event: Initialize(uint160,int24)
+          handler: handleInitialize
+        - event: Swap(indexed address,indexed address,int256,int256,uint160,uint128,int24)
+          handler: handleSwap
+        - event: Mint(address,indexed address,indexed int24,indexed int24,uint128,uint256,uint256)
+          handler: handleMint
+        - event: Burn(indexed address,indexed int24,indexed int24,uint128,uint256,uint256)
+          handler: handleBurn
+        - event: Fee(uint16)
+          handler: handleChangeFee
+        - event: Collect(indexed address,address,indexed int24,indexed int24,uint128,uint128)
+          handler: handleCollect
+        - event: CommunityFee(uint16)
+          handler: handleSetCommunityFee
+        - event: TickSpacing(int24)
+          handler: handleSetTickSpacing
