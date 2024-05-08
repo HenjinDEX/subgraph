@@ -5,7 +5,7 @@ schema:
 dataSources:
   - kind: ethereum/contract
     name: Factory
-    network: hekla
+    network: taiko-hekla-testnet
     source:
       address: '0x2dfFFadDE574158F6c0F84c56Db9F9745d2f0f03'
       abi: Factory
@@ -36,7 +36,7 @@ dataSources:
           handler: handleNewCommunityFee
   - kind: ethereum/contract
     name: NonfungiblePositionManager
-    network: hekla
+    network: taiko-hekla-testnet
     source:
       address: '0x73042906a01017d2676A50973D249fD907ef8B72'
       abi: NonfungiblePositionManager
@@ -71,7 +71,7 @@ dataSources:
 templates:
   - kind: ethereum/contract
     name: Pool
-    network: hekla
+    network: taiko-hekla-testnet
     source:
       abi: Pool
     mapping:
