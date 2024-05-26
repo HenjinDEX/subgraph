@@ -7,9 +7,9 @@ dataSources:
     name: Factory
     network: taiko-hekla-testnet
     source:
-      address: '0x2dfFFadDE574158F6c0F84c56Db9F9745d2f0f03'
+      address: '0x452Ec70440DCaC5F570C10784E57Cd0aaF37c79a'
       abi: Factory
-      startBlock: 20000 
+      startBlock: 214860 
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.6
@@ -38,9 +38,9 @@ dataSources:
     name: NonfungiblePositionManager
     network: taiko-hekla-testnet
     source:
-      address: '0x73042906a01017d2676A50973D249fD907ef8B72'
+      address: '0x99170f0B4EcBA6a162AF1011aE9D924F9157EcF1'
       abi: NonfungiblePositionManager
-      startBlock: 20000
+      startBlock: 214860
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.6
