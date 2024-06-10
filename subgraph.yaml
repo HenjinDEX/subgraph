@@ -32,6 +32,8 @@ dataSources:
       eventHandlers:
         - event: Pool(indexed address,indexed address,address)
           handler: handlePoolCreated
+        - event: CustomPool(indexed address,indexed address,indexed address,address)
+          handler: handleCustomPoolCreated
         - event: DefaultCommunityFee(uint16)
           handler: handleNewCommunityFee
   - kind: ethereum/contract
