@@ -10,6 +10,7 @@ import {
   TokenHourData,
   Bundle,
   PoolHourData,
+  PoolFiveMinutesData,
   TickDayData,
   FeeHourData,
   Tick
@@ -179,6 +180,57 @@ export function updatePoolHourData(event: ethereum.Event): PoolHourData {
 
   // test
   return poolHourData as PoolHourData
+}
+
+export function updatePoolFiveMinutesData(event: ethereum.Event): PoolFiveMinutesData {
+  let timestamp = event.block.timestamp.toI32()
+  let fiveMinuteIndex = timestamp / 300 // get unique 5 minutes within unix history
+  let fiveMinuteStartUnix = fiveMinuteIndex * 300 // want the rounded effect
+  let fiveMinutePoolID = event.address
+    .toHexString()
+    .concat('-')
+    .concat(fiveMinuteIndex.toString())
+  let pool = Pool.load(event.address.toHexString())!
+  let poolFiveMinutesData = PoolFiveMinutesData.load(fiveMinutePoolID)
+  if (poolFiveMinutesData === null) {
+    poolFiveMinutesData = new PoolFiveMinutesData(fiveMinutePoolID)
+    poolFiveMinutesData.periodStartUnix = fiveMinuteStartUnix
+    poolFiveMinutesData.pool = pool.id
+    // things that dont get initialized always
+    poolFiveMinutesData.volumeToken0 = ZERO_BD
+    poolFiveMinutesData.volumeToken1 = ZERO_BD
+    poolFiveMinutesData.volumeUSD = ZERO_BD
+    poolFiveMinutesData.untrackedVolumeUSD = ZERO_BD
+    poolFiveMinutesData.txCount = ZERO_BI
+    poolFiveMinutesData.feesUSD = ZERO_BD
+    poolFiveMinutesData.feeGrowthGlobal0X128 = ZERO_BI
+    poolFiveMinutesData.feeGrowthGlobal1X128 = ZERO_BI
+    poolFiveMinutesData.open = pool.token0Price
+    poolFiveMinutesData.high = pool.token0Price
+    poolFiveMinutesData.low = pool.token0Price
+    poolFiveMinutesData.close = pool.token0Price
+  }
+
+  if (pool.token0Price.gt(poolFiveMinutesData.high)) {
+    poolFiveMinutesData.high = pool.token0Price
+  }
+  if (pool.token0Price.lt(poolFiveMinutesData.low)) {
+    poolFiveMinutesData.low = pool.token0Price
+  }
+
+  poolFiveMinutesData.liquidity = pool.liquidity
+  poolFiveMinutesData.sqrtPrice = pool.sqrtPrice
+  poolFiveMinutesData.token0Price = pool.token0Price
+  poolFiveMinutesData.token1Price = pool.token1Price
+  poolFiveMinutesData.feeGrowthGlobal0X128 = pool.feeGrowthGlobal0X128
+  poolFiveMinutesData.feeGrowthGlobal1X128 = pool.feeGrowthGlobal1X128
+  poolFiveMinutesData.close = pool.token0Price
+  poolFiveMinutesData.tick = pool.tick
+  poolFiveMinutesData.tvlUSD = pool.totalValueLockedUSD
+  poolFiveMinutesData.txCount = poolFiveMinutesData.txCount.plus(ONE_BI)
+  poolFiveMinutesData.save()
+
+  return poolFiveMinutesData as PoolFiveMinutesData
 }
 
 export function updateTokenDayData(token: Token, event: ethereum.Event): TokenDayData {

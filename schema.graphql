@@ -581,6 +581,51 @@ type PoolHourData @entity {
   close: BigDecimal!
 }
 
+# 5 minutes stats tracker for pool
+type PoolFiveMinutesData @entity {
+  # format: <pool address>-<timestamp>
+  id: ID!
+  # unix timestamp for start of 5 minutes
+  periodStartUnix: Int!
+  # pointer to pool
+  pool: Pool!
+  # in range liquidity at end of period
+  liquidity: BigInt!
+  # current price tracker at end of period
+  sqrtPrice: BigInt!
+  # price of token0 - derived from sqrtPrice
+  token0Price: BigDecimal!
+  # price of token1 - derived from sqrtPrice
+  token1Price: BigDecimal!
+  # current tick at end of period
+  tick: BigInt
+  # tracker for global fee growth
+  feeGrowthGlobal0X128: BigInt!
+  # tracker for global fee growth
+  feeGrowthGlobal1X128: BigInt!
+  # tvl derived in USD at end of period
+  tvlUSD: BigDecimal!
+  # volume in token0
+  volumeToken0: BigDecimal!
+  # volume in token1
+  volumeToken1: BigDecimal!
+  # volume in USD
+  volumeUSD: BigDecimal!
+  # fees in USD
+  feesUSD: BigDecimal!
+  # numebr of transactions during period
+  untrackedVolumeUSD: BigDecimal!
+  txCount: BigInt!
+  # opening price of token0
+  open: BigDecimal!
+  # high price of token0
+  high: BigDecimal!
+  # low price of token0
+  low: BigDecimal!
+  # close price of token0
+  close: BigDecimal!
+}
+
 type TickHourData @entity {
   # format: <pool address>-<tick index>-<timestamp>
   id: ID!
