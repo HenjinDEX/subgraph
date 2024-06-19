@@ -19,6 +19,7 @@ import { findEthPerToken, getEthPriceInUSD, getTrackedAmountUSD, priceToTokenPri
 import {
   updatePoolDayData,
   updatePoolHourData,
+  updatePoolFiveMinutesData,
   updateTickDayData,
   updateTokenDayData,
   updateTokenHourData,
@@ -49,6 +50,8 @@ export function handleInitialize(event: Initialize): void {
   token0.save()
   token1.save()
 
+  // save 5 minutes interval data
+  updatePoolFiveMinutesData(event);
 }
 
 export function handleMint(event: MintEvent): void {
@@ -190,6 +193,8 @@ export function handleMint(event: MintEvent): void {
   updateTickFeeVarsAndSave(lowerTick, event)
   updateTickFeeVarsAndSave(upperTick, event)
 
+  // save 5 minutes interval data
+  updatePoolFiveMinutesData(event);
 }
 
 export function handleBurn(event: BurnEvent): void {
@@ -306,6 +311,9 @@ export function handleBurn(event: BurnEvent): void {
   pool.save()
   factory.save()
   burn.save()
+
+  // Save 5 minutes interval data
+  updatePoolFiveMinutesData(event);
 }
 
 export function handleSwap(event: SwapEvent): void {
@@ -492,6 +500,14 @@ export function handleSwap(event: SwapEvent): void {
   let token1DayData = updateTokenDayData(token1 as Token, event)
   let token0HourData = updateTokenHourData(token0 as Token, event)
   let token1HourData = updateTokenHourData(token1 as Token, event)
+  // Save 5 minutes interval data
+  let poolFiveMinutesData = updatePoolFiveMinutesData(event);
+  poolFiveMinutesData.untrackedVolumeUSD = poolFiveMinutesData.untrackedVolumeUSD.plus(amountTotalUSDUntracked)
+  poolFiveMinutesData.volumeUSD = poolFiveMinutesData.volumeUSD.plus(amountTotalUSDTracked)
+  poolFiveMinutesData.volumeToken0 = poolFiveMinutesData.volumeToken0.plus(amount0Abs)
+  poolFiveMinutesData.volumeToken1 = poolFiveMinutesData.volumeToken1.plus(amount1Abs)
+  poolFiveMinutesData.feesUSD = poolFiveMinutesData.feesUSD.plus(feesUSD)
+  poolFiveMinutesData.save();
 
   if(amount0.lt(ZERO_BD)){
     pool.feesToken1 = pool.feesToken1.plus(amount1.times(pool.fee.toBigDecimal()).div(BigDecimal.fromString('1000000')))
