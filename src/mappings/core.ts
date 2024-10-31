@@ -1,5 +1,5 @@
 /* eslint-disable prefer-const */
-import { Bundle, Burn, Factory, Mint, Pool, Swap, Tick, PoolPosition, Token,PoolFeeData } from '../types/schema'
+import { Bundle, Burn, Factory, Mint, Pool, Swap, Tick, PoolPosition, Token,PoolFeeData, User } from '../types/schema'
 import { Pool as PoolABI } from '../types/Factory/Pool'
 import { BigDecimal, BigInt, ethereum, log} from '@graphprotocol/graph-ts'
 
@@ -27,6 +27,25 @@ import {
   updateFeeHourData
 } from '../utils/intervalUpdates'
 import { createTick } from '../utils/tick'
+
+function getOrCreateUser(address: string, timestamp: BigInt): User {
+  let user = User.load(address)
+  if (user === null) {
+    user = new User(address)
+    user.totalValueLockedUSD = ZERO_BD
+    user.tradingVolumeUSD = ZERO_BD
+    user.positionsCount = ZERO_BI
+    user.txCount = ZERO_BI
+    user.feesEarned = ZERO_BD
+    user.activePools = []
+    user.updatedAt = timestamp
+    user.firstActivityTimestamp = timestamp
+    user.lastActivityTimestamp = timestamp
+  } else {
+    user.lastActivityTimestamp = timestamp
+  }
+  return user
+}
 
 export function handleInitialize(event: Initialize): void {
   let pool = Pool.load(event.address.toHexString())!
@@ -195,6 +214,23 @@ export function handleMint(event: MintEvent): void {
 
   // save 5 minutes interval data
   updatePoolFiveMinutesData(event);
+
+  // Update user stats
+  let user = getOrCreateUser(event.params.owner.toHexString(), event.block.timestamp)
+  user.txCount = user.txCount.plus(ONE_BI)
+  user.positionsCount = user.positionsCount.plus(ONE_BI)
+  
+  // Update TVL
+  user.totalValueLockedUSD = user.totalValueLockedUSD.plus(amountUSD)
+  
+  // Update active pools if not already included
+  let pools = user.activePools
+  if (!pools.includes(poolAddress)) {
+    pools.push(poolAddress)
+    user.activePools = pools
+  }
+  
+  user.save()
 }
 
 export function handleBurn(event: BurnEvent): void {
@@ -314,6 +350,30 @@ export function handleBurn(event: BurnEvent): void {
 
   // Save 5 minutes interval data
   updatePoolFiveMinutesData(event);
+
+  // Update user stats
+  let user = getOrCreateUser(event.params.owner.toHexString(), event.block.timestamp)
+  user.txCount = user.txCount.plus(ONE_BI)
+  user.positionsCount = user.positionsCount.minus(ONE_BI)
+  
+  // Update TVL
+  if (user.totalValueLockedUSD.gt(amountUSD)) {
+    user.totalValueLockedUSD = user.totalValueLockedUSD.minus(amountUSD)
+  } else {
+    user.totalValueLockedUSD = ZERO_BD
+  }
+  
+  // Remove pool from active pools if no more positions
+  if (user.positionsCount.equals(ZERO_BI)) {
+    let pools = user.activePools
+    let index = pools.indexOf(poolAddress)
+    if (index > -1) {
+      pools.splice(index, 1)
+      user.activePools = pools
+    }
+  }
+  
+  user.save()
 }
 
 export function handleSwap(event: SwapEvent): void {
@@ -598,6 +658,12 @@ export function handleSwap(event: SwapEvent): void {
       loadTickUpdateFeeVarsAndSave(i.toI32(), event)
     }
   }
+
+  // Update user trading volume
+  let user = getOrCreateUser(event.transaction.from.toHexString(), event.block.timestamp)
+  user.tradingVolumeUSD = user.tradingVolumeUSD.plus(amountTotalUSDTracked)
+  user.txCount = user.txCount.plus(ONE_BI)
+  user.save()
 }
 
 export function handleSetCommunityFee(event: CommunityFee): void {

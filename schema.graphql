@@ -759,3 +759,18 @@ type FeeHourData @entity {
   #
   endFee: BigInt! 
 }
+
+type User @entity {
+  id: ID! # user address
+  totalValueLockedUSD: BigDecimal!
+  tradingVolumeUSD: BigDecimal!
+  positionsCount: BigInt!
+  txCount: BigInt!
+  updatedAt: BigInt!
+  # Optional additional fields
+  feesEarned: BigDecimal!
+  activePools: [String!]!
+  # New timestamp fields
+  firstActivityTimestamp: BigInt!
+  lastActivityTimestamp: BigInt!
+}
