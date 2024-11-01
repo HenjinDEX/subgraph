@@ -354,7 +354,9 @@ export function handleBurn(event: BurnEvent): void {
   // Update user stats
   let user = getOrCreateUser(event.params.owner.toHexString(), event.block.timestamp)
   user.txCount = user.txCount.plus(ONE_BI)
-  user.positionsCount = user.positionsCount.minus(ONE_BI)
+  if (user.positionsCount.gt(ZERO_BI)) {
+    user.positionsCount = user.positionsCount.minus(ONE_BI)
+  }
   
   // Update TVL
   if (user.totalValueLockedUSD.gt(amountUSD)) {
