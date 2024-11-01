@@ -216,7 +216,7 @@ export function handleMint(event: MintEvent): void {
   updatePoolFiveMinutesData(event);
 
   // Update user stats
-  let user = getOrCreateUser(event.params.owner.toHexString(), event.block.timestamp)
+  let user = getOrCreateUser(event.params.sender.toHexString(), event.block.timestamp)
   user.txCount = user.txCount.plus(ONE_BI)
   user.positionsCount = user.positionsCount.plus(ONE_BI)
   
@@ -352,7 +352,7 @@ export function handleBurn(event: BurnEvent): void {
   updatePoolFiveMinutesData(event);
 
   // Update user stats
-  let user = getOrCreateUser(event.params.owner.toHexString(), event.block.timestamp)
+  let user = getOrCreateUser(event.params.sender.toHexString(), event.block.timestamp)
   user.txCount = user.txCount.plus(ONE_BI)
   if (user.positionsCount.gt(ZERO_BI)) {
     user.positionsCount = user.positionsCount.minus(ONE_BI)
