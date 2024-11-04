@@ -6,10 +6,11 @@ import {
   NonfungiblePositionManager,
   Transfer
 } from '../types/NonfungiblePositionManager/NonfungiblePositionManager'
-import { Position, PositionSnapshot, Token} from '../types/schema'
-import { ADDRESS_ZERO, factoryContract, ZERO_BD, ZERO_BI, pools_list} from '../utils/constants'
+import { Bundle, Position, PositionSnapshot, Token} from '../types/schema'
+import { ADDRESS_ZERO, factoryContract, ZERO_BD, ZERO_BI, pools_list, ONE_BI} from '../utils/constants'
 import { Address, BigInt, ethereum } from '@graphprotocol/graph-ts'
 import { convertTokenToDecimal, loadTransaction } from '../utils'
+import { getOrCreateUser } from './core'
 
 
 
@@ -111,7 +112,7 @@ function savePositionSnapshot(position: Position, event: ethereum.Event): void {
 }
 
 export function handleIncreaseLiquidity(event: IncreaseLiquidity): void {
-  
+  let bundle = Bundle.load('1')!
   let position = getPosition(event, event.params.tokenId)
 
   // position was not able to be fetched
@@ -119,39 +120,43 @@ export function handleIncreaseLiquidity(event: IncreaseLiquidity): void {
     return
   }
 
-  let token0 = Token.load(position.token0)
-  let token1 = Token.load(position.token1)
-
-
+  let token0 = Token.load(position.token0)!
+  let token1 = Token.load(position.token1)!
 
   let amount1 = ZERO_BD
   let amount0 = ZERO_BD
 
-    if(pools_list.includes(position.pool))
-      amount0 = convertTokenToDecimal(event.params.amount1, token0!.decimals)
-    else
-      amount0 = convertTokenToDecimal(event.params.amount0, token0!.decimals)
-
-    if(pools_list.includes(position.pool))
-      amount1 = convertTokenToDecimal(event.params.amount0, token1!.decimals)
-    else
-      amount1 = convertTokenToDecimal(event.params.amount1, token1!.decimals)
+  if (pools_list.includes(position.pool)) {
+    amount0 = convertTokenToDecimal(event.params.amount1, token0!.decimals)
+    amount1 = convertTokenToDecimal(event.params.amount0, token1!.decimals)
+  } else {
+    amount0 = convertTokenToDecimal(event.params.amount0, token0!.decimals)
+    amount1 = convertTokenToDecimal(event.params.amount1, token1!.decimals)
+  }
 
   position.liquidity = position.liquidity.plus(event.params.liquidity)
   position.depositedToken0 = position.depositedToken0.plus(amount0)
   position.depositedToken1 = position.depositedToken1.plus(amount1)
-  
-
   // recalculatePosition(position)
-  
-  
   position.save()
-
   savePositionSnapshot(position, event)
-  
+
+  const user = getOrCreateUser(position.owner.toHexString(), event.block.timestamp)
+  if (position.depositedToken0.equals(amount0) && position.depositedToken1.equals(amount1)) {
+    user.positionsCount = user.positionsCount.plus(ONE_BI)
+    user.activePools.push(position.pool)
+  }
+
+  let amountUSD = amount0
+    .times(token0.derivedMatic.times(bundle.maticPriceUSD))
+    .plus(amount1.times(token1.derivedMatic.times(bundle.maticPriceUSD)))
+
+  user.totalValueLockedUSD = user.totalValueLockedUSD.plus(amountUSD)
+  user.save()
 }
 
 export function handleDecreaseLiquidity(event: DecreaseLiquidity): void {
+  let bundle = Bundle.load('1')!
   let position = getPosition(event, event.params.tokenId)
 
   // position was not able to be fetched
@@ -159,39 +164,54 @@ export function handleDecreaseLiquidity(event: DecreaseLiquidity): void {
     return
   }
 
-  let token0 = Token.load(position.token0)
-  let token1 = Token.load(position.token1)
-
+  let token0 = Token.load(position.token0)!
+  let token1 = Token.load(position.token1)!
 
   let amount1 = ZERO_BD
   let amount0 = ZERO_BD
 
-    if(pools_list.includes(position.pool))
-      amount0 = convertTokenToDecimal(event.params.amount1, token0!.decimals)
-    else
-      amount0 = convertTokenToDecimal(event.params.amount0, token0!.decimals)
+  if (pools_list.includes(position.pool)) {
+    amount0 = convertTokenToDecimal(event.params.amount1, token0!.decimals)
+    amount1 = convertTokenToDecimal(event.params.amount0, token1!.decimals)
+  } else {
+    amount0 = convertTokenToDecimal(event.params.amount0, token0!.decimals)
+    amount1 = convertTokenToDecimal(event.params.amount1, token1!.decimals)
+  }
   
-
-    if(pools_list.includes(position.pool))
-      amount1 = convertTokenToDecimal(event.params.amount0, token1!.decimals)
-    else
-      amount1 = convertTokenToDecimal(event.params.amount1, token1!.decimals)
-  
-
   position.liquidity = position.liquidity.minus(event.params.liquidity)
   position.withdrawnToken0 = position.withdrawnToken0.plus(amount0)
   position.withdrawnToken1 = position.withdrawnToken1.plus(amount1)
 
   position = updateFeeVars(position, event, event.params.tokenId)
   // recalculatePosition(position)
-
   position.save()
-
   savePositionSnapshot(position, event)
+
+  const user = getOrCreateUser(position.owner.toHexString(), event.block.timestamp)
+  if (position.depositedToken0.equals(position.withdrawnToken0) && position.depositedToken1.equals(position.withdrawnToken1)) {
+    user.positionsCount = user.positionsCount.minus(ONE_BI)
+    let index = user.activePools.indexOf(position.pool)
+    if (index > -1) {
+      user.activePools.splice(index, 1)
+    }
+  }
+
+  let amountUSD = amount0
+    .times(token0.derivedMatic.times(bundle.maticPriceUSD))
+    .plus(amount1.times(token1.derivedMatic.times(bundle.maticPriceUSD)))
+
+  if (user.totalValueLockedUSD.gt(amountUSD)) {
+    user.totalValueLockedUSD = user.totalValueLockedUSD.minus(amountUSD)
+  } else {
+    user.totalValueLockedUSD = ZERO_BD
+  }
+
+  user.save()
 }
 
 
 export function handleCollect(event: Collect): void {
+  let bundle = Bundle.load('1')!
   let position = getPosition(event, event.params.tokenId)
 
   // position was not able to be fetched
@@ -199,25 +219,20 @@ export function handleCollect(event: Collect): void {
     return
   }
 
-  let token0 = Token.load(position.token0)
-  let token1 = Token.load(position.token1)
-
+  let token0 = Token.load(position.token0)!
+  let token1 = Token.load(position.token1)!
 
   let amount1 = ZERO_BD
   let amount0 = ZERO_BD
 
-
-    if(pools_list.includes(position.pool))
-      amount0 = convertTokenToDecimal(event.params.amount1, token0!.decimals)
-    else
-      amount0 = convertTokenToDecimal(event.params.amount0, token0!.decimals)
+  if (pools_list.includes(position.pool)) {
+    amount0 = convertTokenToDecimal(event.params.amount1, token0!.decimals)
+    amount1 = convertTokenToDecimal(event.params.amount0, token1!.decimals)
+  } else {
+    amount0 = convertTokenToDecimal(event.params.amount0, token0!.decimals)
+    amount1 = convertTokenToDecimal(event.params.amount1, token1!.decimals)
   
-  
-    if(pools_list.includes(position.pool))
-      amount1 = convertTokenToDecimal(event.params.amount0, token1!.decimals)
-    else
-      amount1 = convertTokenToDecimal(event.params.amount1, token1!.decimals)
-  
+  }
 
   position.collectedToken0 = position.collectedToken0.plus(amount0)
   position.collectedToken1 = position.collectedToken1.plus(amount1)
@@ -226,16 +241,27 @@ export function handleCollect(event: Collect): void {
   position.collectedFeesToken1 = position.collectedToken1.minus(position.withdrawnToken1)
 
   position = updateFeeVars(position, event, event.params.tokenId)
-
   // recalculatePosition(position)
-
   position.save()
-
   savePositionSnapshot(position, event)
+
+  const user = getOrCreateUser(position.owner.toHexString(), event.block.timestamp)
+  let amountUSD = amount0
+    .times(token0.derivedMatic.times(bundle.maticPriceUSD))
+    .plus(amount1.times(token1.derivedMatic.times(bundle.maticPriceUSD)))
+
+  user.feesEarned = user.feesEarned.plus(amountUSD)
+  if (user.totalValueLockedUSD.gt(amountUSD)) {
+    user.totalValueLockedUSD = user.totalValueLockedUSD.minus(amountUSD)
+  } else {
+    user.totalValueLockedUSD = ZERO_BD
+  }
+
+  user.save()
 }
 
 export function handleTransfer(event: Transfer): void {
-  
+  const bundle = Bundle.load('1')!
   let position = getPosition(event, event.params.tokenId)
 
   // position was not able to be fetched
@@ -243,11 +269,40 @@ export function handleTransfer(event: Transfer): void {
     return
   }
 
+  const token0 = Token.load(position.token0)!
+  const token1 = Token.load(position.token1)!
+
   position.owner = event.params.to
   position.save()
 
   savePositionSnapshot(position, event)
+
+  let amount0 = position.depositedToken0.minus(position.withdrawnToken0).minus(position.collectedFeesToken0)
+  let amount1 = position.depositedToken1.minus(position.withdrawnToken1).minus(position.collectedFeesToken1)
+
+  let amountUSD = amount0
+    .times(token0.derivedMatic.times(bundle.maticPriceUSD))
+    .plus(amount1.times(token1.derivedMatic.times(bundle.maticPriceUSD)))
   
-  
+  const user = getOrCreateUser(event.params.from.toHexString(), event.block.timestamp)
+  user.positionsCount = user.positionsCount.minus(ONE_BI)
+  let index = user.activePools.indexOf(position.pool)
+  if (index > -1) {
+    user.activePools.splice(index, 1)
+  }
+
+  if (user.totalValueLockedUSD.gt(amountUSD)) {
+    user.totalValueLockedUSD = user.totalValueLockedUSD.minus(amountUSD)
+  } else {
+    user.totalValueLockedUSD = ZERO_BD
+  }
+
+  user.save()
+
+  const newUser = getOrCreateUser(event.params.to.toHexString(), event.block.timestamp)
+  newUser.positionsCount = newUser.positionsCount.plus(ONE_BI)
+  newUser.activePools.push(position.pool)
+  newUser.totalValueLockedUSD = newUser.totalValueLockedUSD.plus(amountUSD)
+  newUser.save()
 }
 

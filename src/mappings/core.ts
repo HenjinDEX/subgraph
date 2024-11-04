@@ -28,7 +28,7 @@ import {
 } from '../utils/intervalUpdates'
 import { createTick } from '../utils/tick'
 
-function getOrCreateUser(address: string, timestamp: BigInt): User {
+export function getOrCreateUser(address: string, timestamp: BigInt): User {
   let user = User.load(address)
   if (user === null) {
     user = new User(address)
@@ -214,23 +214,6 @@ export function handleMint(event: MintEvent): void {
 
   // save 5 minutes interval data
   updatePoolFiveMinutesData(event);
-
-  // Update user stats
-  let user = getOrCreateUser(event.params.sender.toHexString(), event.block.timestamp)
-  user.txCount = user.txCount.plus(ONE_BI)
-  user.positionsCount = user.positionsCount.plus(ONE_BI)
-  
-  // Update TVL
-  user.totalValueLockedUSD = user.totalValueLockedUSD.plus(amountUSD)
-  
-  // Update active pools if not already included
-  let pools = user.activePools
-  if (!pools.includes(poolAddress)) {
-    pools.push(poolAddress)
-    user.activePools = pools
-  }
-  
-  user.save()
 }
 
 export function handleBurn(event: BurnEvent): void {
@@ -350,32 +333,6 @@ export function handleBurn(event: BurnEvent): void {
 
   // Save 5 minutes interval data
   updatePoolFiveMinutesData(event);
-
-  // Update user stats
-  let user = getOrCreateUser(event.params.sender.toHexString(), event.block.timestamp)
-  user.txCount = user.txCount.plus(ONE_BI)
-  if (user.positionsCount.gt(ZERO_BI)) {
-    user.positionsCount = user.positionsCount.minus(ONE_BI)
-  }
-  
-  // Update TVL
-  if (user.totalValueLockedUSD.gt(amountUSD)) {
-    user.totalValueLockedUSD = user.totalValueLockedUSD.minus(amountUSD)
-  } else {
-    user.totalValueLockedUSD = ZERO_BD
-  }
-  
-  // Remove pool from active pools if no more positions
-  if (user.positionsCount.equals(ZERO_BI)) {
-    let pools = user.activePools
-    let index = pools.indexOf(poolAddress)
-    if (index > -1) {
-      pools.splice(index, 1)
-      user.activePools = pools
-    }
-  }
-  
-  user.save()
 }
 
 export function handleSwap(event: SwapEvent): void {
